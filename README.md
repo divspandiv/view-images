@@ -1,0 +1,173 @@
+# view-images
+商品评价列表查看大图功能（备忘）
+
+
+import React, {Component} from 'react';
+
+export class ViewImgs extends Component {
+
+	componentDidMount(){
+	
+		let {fn} = this.props;
+		
+		let imgSwiper = new Swiper('.view-swiper',{
+			//..
+		});
+		let timer = null;//定时器
+		let init = {
+			newTime: 0,//触摸时间点
+			oldTime: 0,//上次触摸时间点
+			enlarge: false,//放大状态
+			relativeX: 0,//手指在图片上位置
+			relativeY: 0,
+			x1: 0,//手指1位置
+			x2: 0,//手指2位置
+			startX: 0,//放大之前双指距离
+			endX: 0,//放大过程中双指距离
+			wid: 0,//图片宽度
+			hei: 0,//图片高度
+			lef: 0,//图片左边距
+			to: 0//图片顶距
+		}
+		//点击、放大、拖拽、双指事件
+		$('.view-swiper img').on('touchstart',function (event) {
+			event.preventDefault();
+			//记录触摸开始位置
+			init.x1 = event.touches[0].pageX;//手指1
+			init.lef = $(this).offset().left;
+			init.to = $(this).offset().top-$(window).scrollTop();
+			if(event.touches.length === 2){
+				init.x2 = event.touches[1].pageX;//手指2
+				init.startX = Math.abs(init.x1-init.x2);
+				init.wid = $(this).width();
+				init.hei = $(this).height();
+			}
+			//获取手指在容器中的位置
+    		init.relativeX = init.x1 - $(this).offset().left;
+    		init.relativeY = event.touches[0].pageY - init.to;
+			//清楚计时器
+			clearTimeout(timer);
+			//两次触摸时间间隔
+			init.oldTime = init.newTime;
+			init.newTime = new Date().getTime();
+			//触摸元素及id
+			let ele = $(this),eleID = ele.attr('id');
+			//单击、双击事件
+			timer = setTimeout(function () {
+				if (init.newTime - init.oldTime > 300){//单击
+					ele.css({width:'100%'});
+			    	imgSwiper.unlockSwipeToNext();
+			    	imgSwiper.unlockSwipeToPrev();
+			    	init.enlarge = false;
+			    	fn();
+			    } else {//双击
+			    	if(init.enlarge === false){//正常大小
+			    		ele.css({width:'200%',left: -init.relativeX+'px', top: ele.offset().top*2 - event.touches[0].pageY - $(window).scrollTop() +'px', margin:0});
+			    		imgSwiper.lockSwipeToNext();//放大时禁止swiper
+			    		imgSwiper.lockSwipeToPrev();
+			    		init.enlarge = true;
+			    	} else {//放大状态
+			    		ele.css({width:'100%',top:0,left:0,right:0,bottom:0,margin:'auto'});
+			    		imgSwiper.unlockSwipeToNext();
+			    		imgSwiper.unlockSwipeToPrev();
+			    		init.enlarge = false;
+			    	}
+			    }
+			},300);
+			//移动+双指放大
+			let moveBox = document.getElementById(eleID);//要移动的图片
+			let handler = function(event) {//移动事件
+			    event.preventDefault();
+			    if (event.targetTouches.length == 1) {//单指
+				  	let touch = event.targetTouches[0];
+				  	if(init.enlarge){
+				  		ele.css({margin:0});
+				  		moveBox.style.left = touch.pageX - init.relativeX + 'px';
+				    	moveBox.style.top = touch.pageY - init.relativeY + 'px';
+				  	}
+				    if(Math.abs(touch.pageX - init.x1) > 2){
+				    	clearTimeout(timer);
+				    }
+				} else if (event.targetTouches.length == 2){//双指
+					clearTimeout(timer);
+					let touch1 = event.targetTouches[0],
+						touch2 = event.targetTouches[1];
+					init.endX = Math.abs(touch1.pageX - touch2.pageX);
+					let newWidth = wid+(init.endX - init.startX),winWidth = $(window).width();
+					//最多放大两倍
+					newWidth = newWidth > winWidth*2 ? winWidth*2 : newWidth;
+					newWidth = newWidth < winWidth ? winWidth : newWidth;
+					if(newWidth > winWidth){
+						ele.css({margin:0});
+						init.enlarge = true;
+						imgSwiper.lockSwipeToNext();
+		    			imgSwiper.lockSwipeToPrev();
+					} else {
+						init.enlarge = false;
+						imgSwiper.unlockSwipeToNext();
+		    			imgSwiper.unlockSwipeToPrev();
+					}
+					ele.css({
+						width: newWidth + 'px',
+						left: init.lef-(init.endX - init.startX)/2,
+						top: init.to-(init.endX - init.startX)/2
+					});
+				}
+			};
+	    	moveBox.addEventListener('touchmove', handler , false);
+			$(moveBox).on('touchend',function (event) {//手指离开时移除监听
+			  	moveBox.removeEventListener('touchmove', handler ,false);
+			  	if(ele.width() === $(window).width()){
+		    		ele.css({width:'100%',top:0,left:0,right:0,bottom:0,margin:'auto'});
+			  	}
+			});
+		});
+	}
+	render(){
+		let imgs = this.props.imgs || [];
+		let imgSlides = imgs.map(function(item,i){
+			return (
+				<div className="swiper-slide swiper-lazy swiper-lazy-loaded" style={viewStyles.slides} key={i} >
+					<img id={i} src={item} style={viewStyles.imgs} />
+				</div>
+			)
+		})
+		return(
+			<div data-plugin="swiper" className="view-imgs" style={viewStyles.viewImgs}>
+				<div className="swiper-container view-swiper" style={viewStyles.container}>
+					<div className="swiper-wrapper">
+						{imgSlides}
+					</div>
+				</div>
+			</div>
+		)
+	}
+}
+
+const viewStyles = {
+	viewImgs: {
+		width: '100%',
+		height: '100%',
+		zIndex: 999,
+		background: 'rgba(0,0,0,.5)',
+		position: 'fixed',
+		left: 0,
+		top: 0
+	},
+	container: {
+		width: '100%',
+		height: '100%'
+	},
+	slides:{
+		position: 'relative'
+	},
+	imgs: {
+		width: '100%',
+		position: 'absolute',
+		top: 0,
+		left: 0,
+		right: 0,
+		bottom: 0,
+		margin: 'auto'
+	}
+}
